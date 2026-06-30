@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ECG Wireless - Politeknik Negeri Batam</title>
+    <link rel="manifest" href="/manifest.json">
+    <meta name="theme-color" content="#34495e">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+    <!-- TOP BAR -->
+    <div class="top-bar">
+        <span class="date-display" id="dateDisplay">--/--/----</span>
+        <h1 class="title">GoSleepAssistentAPP(GoSipAPP): AI Enabled Wireless ECG Monitoring System</h1>
+        <div class="top-bar-right">
+            <img id="btIcon" class="bt-icon" src="/assets/bt_off.svg" alt="BT">
+            <div class="battery-icon" id="batteryIcon">
+                <div class="battery-body">
+                    <div class="battery-tip"></div>
+                    <div class="battery-fill" id="batteryFill"></div>
+                    <span class="battery-text" id="batteryText">100%</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MAIN CONTENT -->
+    <div class="main-content">
+        <!-- LEFT: ECG PLOTS -->
+        <div class="plot-area">
+            <div class="patient-info" id="patientInfo">No Patient Data</div>
+            <div class="plot-container">
+                <div class="plot-wrapper">
+                    <span class="plot-label" style="color: #2ecc71;">Lead I (LA - RA)</span>
+                    <canvas id="ecgCanvas1" class="ecg-canvas"></canvas>
+                </div>
+                <div class="plot-wrapper">
+                    <span class="plot-label" style="color: #2ecc71;">Lead II (CH1 - RA)</span>
+                    <canvas id="ecgCanvas2" class="ecg-canvas"></canvas>
+                </div>
+                <div class="plot-wrapper">
+                    <span class="plot-label" style="color: #2ecc71;">Lead III (CH2 - RA)</span>
+                    <canvas id="ecgCanvas3" class="ecg-canvas"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- RIGHT: CONTROL PANEL -->
+        <div class="right-panel">
+            <!-- Heart Rate Box -->
+            <div class="info-box hr-box">
+                <div class="info-label" style="color: #c0392b;">Heart Rate</div>
+                <div class="info-value" id="hrDisplay" style="color: #e74c3c;">-- BPM</div>
+            </div>
+
+            <!-- Cardiac Status Box -->
+            <div class="info-box cs-box">
+                <div class="info-label" style="color: #196f3d;">Cardiac Status</div>
+                <div class="info-value" id="csDisplay" style="color: #27ae60;">---</div>
+            </div>
+
+            <!-- AI Prediction Box -->
+            <div class="info-box ai-box">
+                <div class="info-label" style="color: #0e6655;">Apnea AI Status</div>
+                <div class="ai-result-row">
+                    <span class="ai-prob" id="aiProbDisplay">Prob: -</span>
+                    <span class="ai-status" id="aiStatusDisplay">60s</span>
+                </div>
+            </div>
+
+            <!-- Device Select -->
+            <div class="panel-box device-box">
+                <div class="panel-title">Device Select</div>
+                <select id="deviceCombo" class="device-select">
+                    <option>No devices found</option>
+                </select>
+                <div class="device-buttons">
+                    <button id="refreshBtn" class="btn btn-blue">Refresh</button>
+                    <button id="connectBtn" class="btn btn-green">Connect</button>
+                    <button id="disconnectBtn" class="btn btn-red" disabled>Disconnect</button>
+                </div>
+                <div class="connection-status" id="connectionStatus">Status: Disconnected</div>
+            </div>
+
+            <!-- Plot Control -->
+            <div class="panel-box control-box">
+                <div class="panel-title">Plot Control</div>
+                <button id="pauseBtn" class="btn btn-red">Pause</button>
+                <button id="resumeBtn" class="btn btn-green">Resume</button>
+                <button id="recordingBtn" class="btn btn-orange">Recording Time</button>
+            </div>
+            <div class="recording-time" id="recordingTime">Recording Time: 00:00:00</div>
+
+            <!-- Spacer -->
+            <div class="panel-spacer"></div>
+
+            <!-- Bottom Bar -->
+            <div class="bottom-bar">
+                <span class="perf-label" id="spsLabel">Serial: -- SPS</span>
+                <span class="perf-label" id="fpsLabel">Plotter: -- FPS</span>
+                <button id="closeBtn" class="btn btn-red btn-close">CLOSE</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- PATIENT DATA MODAL -->
+    <div class="modal-overlay" id="patientModal" style="display: none;">
+        <div class="modal-card">
+            <div class="modal-header">DETAIL PASIEN</div>
+            <div class="modal-body">
+                <div class="form-row">
+                    <label class="field-label">Nama Lengkap</label>
+                    <input type="text" id="patientNameInput" class="field-input" placeholder="Masukkan nama...">
+                </div>
+                <div class="form-row">
+                    <label class="field-label">Tanggal Lahir</label>
+                    <input type="date" id="patientDobInput" class="field-input">
+                </div>
+            </div>
+            <hr class="modal-divider">
+            <div class="modal-buttons">
+                <button id="modalStartBtn" class="btn btn-green">Mulai Rekam</button>
+                <button id="modalCancelBtn" class="btn btn-red">Batal</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ALERT MODAL -->
+    <div class="modal-overlay" id="alertModal" style="display: none;">
+        <div class="alert-card">
+            <div class="alert-title" id="alertTitle">Info</div>
+            <div class="alert-message" id="alertMessage">Message</div>
+            <button id="alertOkBtn" class="btn btn-blue">OK</button>
+        </div>
+    </div>
+
+    <!-- SERVICE WORKER REGISTRATION -->
+    <script>
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('/sw.js').catch(() => {});
+        }
+    </script>
+
+    <!-- SCRIPTS -->
+    <script src="/js/ecg_canvas.js"></script>
+    <script src="/js/websocket.js"></script>
+    <script src="/js/ui_manager.js"></script>
+    <script src="/js/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,19 @@
+# Web Framework
+fastapi
+uvicorn[standard]
+
+# Data Processing & Math
+numpy>=1.23.0
+scipy
+
+# Serial Communication
+pyserial
+
+# Deep Learning
+tensorflow
+
+# Reporting
+python-docx
+matplotlib
+
+# CORS (built-in with FastAPI, but explicit)
