@@ -18,6 +18,9 @@ class RecordingManager:
         self.recorded_raw = []  # List of CSV strings (timestamp,Lead_I,Lead_II,Lead_III)
         self.recorded_processed = []  # List of [timestamp, f1, f2, f3]
         self.ai_results = []  # List of dicts {timestamp, elapsed_sec, status, probability}
+        # Latest vitals (used in the generated report)
+        self._last_hr = 0
+        self._last_cardiac_status = "---"
 
     def start_recording(self, patient_name: str, patient_dob: str):
         self.is_recording = True
@@ -65,7 +68,12 @@ class RecordingManager:
     def stop_recording(self) -> dict:
         """Stop recording and generate all report files. Returns file paths."""
         self.is_recording = False
+        # Always reset start_time so get_duration_seconds returns 0
+        self.start_time = None
         if not self.recorded_raw:
+            self.recorded_raw.clear()
+            self.recorded_processed.clear()
+            self.ai_results.clear()
             return {"error": "No data recorded"}
 
         safe_name = "".join(c if c.isalnum() else "_" for c in self.patient_name)
@@ -82,7 +90,7 @@ class RecordingManager:
         filename_raw = folder_path / f"ECG_RAW_{safe_name}_{time_str}.csv"
         filename_proc = folder_path / f"ECG_PROCESSED_{safe_name}_{time_str}.csv"
         filename_anno = folder_path / f"ECG_AI_ANNOTATION_{safe_name}_{time_str}.csv"
-        filename_docx = folder_path / f"ECG_REPORT_{safe_name}_{time_str}.csv"
+        filename_docx = folder_path / f"ECG_REPORT_{safe_name}_{time_str}.docx"
 
         # 1. Save RAW CSV
         with open(filename_raw, "w") as f:
@@ -151,10 +159,16 @@ class RecordingManager:
         self.start_time = None
         return result
 
-    # Store latest HR/status for report
-    _last_hr = 0
-    _last_cardiac_status = "---"
-
     def update_vitals(self, hr: int, cardiac_status: str):
         self._last_hr = hr
         self._last_cardiac_status = cardiac_status
+
+    def reset_session(self):
+        """Clear all session data without affecting the in-progress recording flag.
+        Called on a fresh serial connection (mirrors desktop start_connection
+        clearing recorded_data, recorded_processed_data, ai_results_buffer)."""
+        self.recorded_raw.clear()
+        self.recorded_processed.clear()
+        self.ai_results.clear()
+        # start_time is only set during an active recording; leave it alone.
+        # _last_hr / _last_cardiac_status persist so the report shows last seen values.

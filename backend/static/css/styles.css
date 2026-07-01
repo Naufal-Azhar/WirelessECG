@@ -1,12 +1,27 @@
 /* Reset */
 * { margin: 0; padding: 0; box-sizing: border-box; }
 
-body {
+html, body {
     font-family: Arial, sans-serif;
     background-color: #f0f0f0;
-    overflow: hidden;
-    height: 100vh;
-    width: 100vw;
+    height: 100%;
+    width: 100%;
+    /* Allow scroll on mobile so the control panel is reachable */
+    overflow: auto;
+    -webkit-overflow-scrolling: touch;
+    /* Prevent rubber-band scroll on iOS but allow programmatic scroll */
+    overscroll-behavior-y: contain;
+    /* Disable text selection on UI elements (UX) but keep inputs editable */
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+    /* Disable pull-to-refresh on mobile PWA */
+    touch-action: manipulation;
+}
+
+input, textarea, select {
+    -webkit-user-select: text;
+    user-select: text;
 }
 
 /* ===== TOP BAR ===== */
@@ -17,6 +32,7 @@ body {
     height: 40px;
     background: #f0f0f0;
     border-bottom: 1px solid #ddd;
+    flex-shrink: 0;
 }
 
 .date-display {
@@ -24,10 +40,11 @@ body {
     font-weight: bold;
     color: black;
     min-width: 100px;
+    flex: 0 0 100px;
 }
 
 .title {
-    flex: 1;
+    flex: 1 1 auto;
     text-align: center;
     font-size: 16px;
     font-weight: bold;
@@ -43,6 +60,7 @@ body {
     align-items: center;
     gap: 8px;
     min-width: 100px;
+    flex: 0 0 100px;
     justify-content: flex-end;
 }
 
@@ -55,8 +73,8 @@ body {
 .battery-icon { display: flex; align-items: center; }
 .battery-body {
     position: relative;
-    width: 50px;
-    height: 22px;
+    width: 60px;
+    height: 28px;
     border: 2px solid #34495e;
     border-radius: 4px;
     background: #ecf0f1;
@@ -64,11 +82,11 @@ body {
 }
 .battery-tip {
     position: absolute;
-    right: -6px;
+    right: -5px;
     top: 50%;
     transform: translateY(-50%);
     width: 4px;
-    height: 8px;
+    height: 10px;
     background: #34495e;
     border-radius: 0 2px 2px 0;
 }
@@ -88,7 +106,7 @@ body {
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 8px;
+    font-size: 9px;
     font-weight: bold;
     color: #2c3e50;
     z-index: 1;
@@ -97,37 +115,53 @@ body {
 /* ===== MAIN CONTENT ===== */
 .main-content {
     display: flex;
-    height: calc(100vh - 40px);
+    height: 100vh;  /* fallback */
+    height: 100dvh; /* dynamic - excludes mobile browser chrome */
+    width: 100vw;
 }
 
 /* ===== PLOT AREA (LEFT) ===== */
 .plot-area {
-    flex: 1;
+    flex: 1 1 auto;
+    min-width: 0;
+    min-height: 0;
     display: flex;
     flex-direction: column;
     padding: 5px;
     position: relative;
+    background: #f0f0f0;
 }
 
 .patient-info {
-    position: absolute;
-    top: 10px;
-    left: 15px;
-    z-index: 10;
+    flex: 0 0 auto;
+    min-height: 22px;
     font-size: 10pt;
     color: #7f8c8d;
+    line-height: 22px;
+    padding: 0 4px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .plot-container {
-    flex: 1;
+    flex: 1 1 auto;
+    min-height: 0;
     display: flex;
     flex-direction: column;
+    gap: 2px;
+    width: 100%;
+    height: 100%;
 }
 
 .plot-wrapper {
-    flex: 1;
+    flex: 1 1 0;
+    min-height: 0;
     position: relative;
-    margin-bottom: 2px;
+    background: #000;
+    overflow: hidden;
+    /* Canvas inside must not eat touch events meant for the page */
+    touch-action: none;
 }
 
 .plot-label {
@@ -137,6 +171,7 @@ body {
     z-index: 10;
     font-size: 9px;
     font-weight: bold;
+    pointer-events: none;
 }
 
 .ecg-canvas {
@@ -144,33 +179,50 @@ body {
     height: 100%;
     background: #000;
     display: block;
+    touch-action: none;
 }
 
 /* ===== RIGHT PANEL ===== */
 .right-panel {
-    width: 300px;
-    min-width: 280px;
-    max-width: 320px;
+    width: 320px;
+    min-width: 300px;
+    max-width: 340px;
+    flex: 0 0 320px;
     display: flex;
     flex-direction: column;
     padding: 5px;
     gap: 5px;
     overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    background: #f0f0f0;
+}
+
+/* Info Box Frame */
+.info-frame {
+    background: #ffffff;
+    border-radius: 10px;
+    padding: 5px;
+    border: 2px solid #ecf0f1;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
 }
 
 /* Info Boxes */
 .info-box {
     border-radius: 8px;
-    padding: 8px;
+    padding: 4px 8px;
     text-align: center;
 }
 .info-label {
     font-size: 12px;
     font-weight: bold;
+    line-height: 1.2;
 }
 .info-value {
     font-size: 14px;
     font-weight: bold;
+    line-height: 1.2;
 }
 
 .hr-box { background: #fef5f5; border: 1px solid #fadbd8; }
@@ -179,19 +231,24 @@ body {
 
 .ai-result-row {
     display: flex;
-    justify-content: center;
+    justify-content: space-between;
     align-items: center;
-    gap: 10px;
-    margin-top: 4px;
+    gap: 8px;
+    margin-top: 2px;
 }
 .ai-prob { font-size: 10px; color: #7f8c8d; }
-.ai-status { font-size: 14px; font-weight: bold; color: #7f8c8d; }
+.ai-status {
+    font-size: 14px;
+    font-weight: bold;
+    color: #7f8c8d;
+    text-align: right;
+}
 
 /* Panel Boxes */
 .panel-box {
-    background: white;
+    background: #ffffff;
     border-radius: 8px;
-    padding: 8px;
+    padding: 6px 8px;
     border: 1px solid #ecf0f1;
 }
 .panel-title {
@@ -208,12 +265,14 @@ body {
     padding: 4px;
     border: 1px solid #bdc3c7;
     border-radius: 4px;
-    background: white;
-    color: black;
-    font-size: 9px;
+    background: #ffffff;
+    color: #000;
+    font-size: 10px;
     margin-bottom: 5px;
+    height: 24px;
 }
-.device-select option { background: white; color: black; }
+.device-select:disabled { background: #f5f5f5; color: #95a5a6; }
+.device-select option { background: #ffffff; color: #000; }
 
 .device-buttons {
     display: grid;
@@ -222,10 +281,10 @@ body {
 }
 
 .connection-status {
-    font-size: 8px;
+    font-size: 9px;
     color: #7f8c8d;
     text-align: center;
-    margin-top: 4px;
+    margin-top: 5px;
 }
 
 /* Control Buttons */
@@ -239,33 +298,47 @@ body {
     font-size: 9px;
     color: #7f8c8d;
     text-align: center;
+    margin-top: 2px;
 }
 
-.panel-spacer { flex: 1; }
+.panel-spacer { flex: 1 1 auto; min-height: 0; }
 
 /* Bottom Bar */
 .bottom-bar {
     display: flex;
     align-items: center;
     gap: 8px;
+    padding-top: 4px;
 }
 .perf-label {
-    font-size: 7px;
+    font-size: 8px;
     color: #7f8c8d;
+    white-space: nowrap;
 }
 
 /* ===== BUTTONS ===== */
 .btn {
-    color: white;
-    padding: 5px 10px;
+    color: #ffffff;
+    padding: 5px 8px;
     border: none;
     border-radius: 4px;
     font-size: 11px;
     font-weight: bold;
     cursor: pointer;
-    transition: background 0.2s;
+    transition: background 0.2s, opacity 0.2s;
+    line-height: 1.2;
+    white-space: nowrap;
+    /* Mobile-friendly touch */
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+    /* Hit area: at least 44px tall for touch (Apple HIG), 48px for Android */
+    min-height: 32px;
 }
-.btn:disabled { background: #95a5a6; cursor: not-allowed; }
+.btn:disabled {
+    background: #95a5a6 !important;
+    cursor: not-allowed;
+    opacity: 0.7;
+}
 .btn-blue { background: #3498db; }
 .btn-blue:hover:not(:disabled) { background: #2980b9; }
 .btn-green { background: #2ecc71; }
@@ -274,17 +347,25 @@ body {
 .btn-red:hover:not(:disabled) { background: #c0392b; }
 .btn-orange { background: #f39c12; }
 .btn-orange:hover:not(:disabled) { background: #d68910; }
-.btn-close { margin-left: auto; }
+.btn-close { margin-left: auto; padding: 6px 12px; font-size: 11px; }
+
+.btn.is-active {
+    background: #95a5a6 !important;
+    box-shadow: inset 0 2px 4px rgba(0,0,0,0.2);
+}
 
 /* ===== MODALS ===== */
 .modal-overlay {
     position: fixed;
     inset: 0;
-    background: rgba(0,0,0,0.5);
+    background: rgba(0, 0, 0, 0.5);
     display: flex;
     align-items: center;
     justify-content: center;
     z-index: 1000;
+    /* Allow modal to scroll if content is tall on mobile */
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
 }
 
 .modal-card {
@@ -294,11 +375,12 @@ body {
     width: 400px;
     max-width: 90vw;
     overflow: hidden;
+    margin: auto;
 }
 
 .modal-header {
     background: #34495e;
-    color: white;
+    color: #ffffff;
     font-size: 14px;
     font-weight: bold;
     padding: 10px;
@@ -327,18 +409,20 @@ body {
     color: #2c3e50;
     font-weight: bold;
     font-size: 12px;
-    min-width: 100px;
-    max-width: 100px;
+    min-width: 110px;
+    max-width: 110px;
+    text-align: center;
 }
 
 .field-input {
     flex: 1;
-    padding: 6px;
+    padding: 8px 6px;
     border: 1px solid #bdc3c7;
     border-radius: 4px;
-    font-size: 13px;
+    font-size: 14px;  /* 14px+ prevents iOS zoom-on-focus */
     color: #2d3436;
-    background: white;
+    background: #ffffff;
+    min-height: 36px;  /* touch-friendly */
 }
 .field-input:focus { border: 2px solid #3498db; outline: none; }
 
@@ -361,8 +445,10 @@ body {
     border-radius: 8px;
     padding: 20px;
     text-align: center;
-    min-width: 300px;
+    min-width: 280px;
     max-width: 90vw;
+    border: 1px solid #bdc3c7;
+    margin: auto;
 }
 .alert-title {
     font-size: 14px;
@@ -374,33 +460,60 @@ body {
     font-size: 12px;
     color: #2c3e50;
     margin-bottom: 15px;
+    white-space: pre-line;
 }
 
 /* ===== RESPONSIVE (TABLET) ===== */
 @media (max-width: 1024px) {
-    .main-content { flex-direction: column; }
+    .main-content { flex-direction: column; height: auto; min-height: 100vh; min-height: 100dvh; }
     .right-panel {
         width: 100%;
         max-width: 100%;
+        flex: 0 0 auto;
         flex-direction: row;
         flex-wrap: wrap;
         gap: 5px;
         height: auto;
     }
-    .info-box { flex: 1; min-width: 120px; }
+    .info-frame { flex: 1; min-width: 250px; }
     .panel-box { flex: 1; min-width: 200px; }
     .panel-spacer { display: none; }
-    .plot-area { height: 50vh; }
+    .plot-area { height: 50vh; min-height: 300px; }
 }
 
 /* ===== RESPONSIVE (MOBILE) ===== */
 @media (max-width: 768px) {
     .title { font-size: 11px; }
     .date-display { display: none; }
-    .right-panel { width: 100%; max-width: 100%; flex-direction: column; }
+    /* Stack vertically; allow page scroll so all controls are reachable */
+    .main-content {
+        flex-direction: column;
+        height: auto;
+        min-height: 100vh;
+        min-height: 100dvh;
+    }
+    .right-panel {
+        width: 100%;
+        max-width: 100%;
+        flex: 0 0 auto;
+        flex-direction: column;
+        overflow-y: visible;
+    }
+    .info-frame { min-width: 100%; }
     .info-box { min-width: 100%; }
-    .plot-area { height: 45vh; }
+    .plot-area { height: 45vh; min-height: 250px; }
     .modal-card { width: 95vw; }
-    .form-row { flex-direction: column; gap: 4px; }
+    .form-row { flex-direction: column; gap: 4px; align-items: stretch; }
     .field-label { min-width: 100%; max-width: 100%; text-align: center; }
+    .field-input { width: 100%; }
+
+    /* Larger hit areas for touch */
+    .btn { min-height: 44px; font-size: 14px; padding: 10px 12px; }
+    .btn-close { min-height: 44px; }
+
+    /* Date input large enough to tap */
+    .device-select { height: 40px; font-size: 14px; }
+    .top-bar { height: 44px; }
+    .info-label { font-size: 13px; }
+    .info-value { font-size: 16px; }
 }

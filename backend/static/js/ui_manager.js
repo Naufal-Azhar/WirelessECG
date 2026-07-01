@@ -1,6 +1,13 @@
 /**
  * UI Manager - Handles all DOM updates, replicating the desktop PyQt6 GUI.
  * Port of ECGWindow UI update methods.
+ *
+ * AI display state machine (mirrors desktop update_rate_indicators + update_ai_ui):
+ *   not connected + no prediction  -> status="Stopped",    prob="-"
+ *   connected + buffering (first)  -> status="Ns" (countdown), prob="Buffering..."
+ *   connected + predicted          -> status="APNEA/NORMAL", prob="Prob: X%"
+ *   connected + between predicts   -> status="APNEA/NORMAL", prob="Next update: Xs"
+ *   error                          -> status="Error",       prob="Prob: -"
  */
 
 class UIManager {
@@ -52,8 +59,18 @@ class UIManager {
 
         // State
         this.isRecording = false;
+        this.isPaused = false;
+        this.isConnected = false;
         this.recordingStartTime = null;
         this.recordingTimerInterval = null;
+
+        // AI state tracking
+        this.aiPredictionMade = false;   // matches desktop ai_prediction_made
+        this.aiLastStatus = 'Stopped';   // last status word we displayed (for change detection)
+        this.aiLastProbability = 0;
+
+        // Set initial idle display
+        this._renderAIStopped();
     }
 
     // ===== DATE =====
@@ -75,7 +92,9 @@ class UIManager {
         // Port of BatteryIcon.set_level() + paintEvent()
         const pct = Math.max(0, Math.min(100, Math.round(level)));
         this.batteryText.textContent = pct + '%';
-        this.batteryFill.style.width = (pct * 0.68) + '%'; // Scale to fit body
+        // Body is 60px wide, 2px border on each side, 3px fill padding on each side
+        // = (60 - 2*2 - 2*3) = 50px max fill width
+        this.batteryFill.style.width = ((pct / 100) * 50) + 'px';
 
         if (pct > 50) {
             this.batteryFill.style.background = '#2ecc71';
@@ -89,8 +108,12 @@ class UIManager {
     // ===== HEART RATE =====
     updateHeartRate(bpm, status) {
         this.hrDisplay.textContent = bpm > 0 ? `${bpm} BPM` : '-- BPM';
+        this.csDisplay.textContent = status;
+        this._applyCardiacStatusColor(status);
+    }
 
-        // Port of cardiac status color logic from update_display_sweep()
+    _applyCardiacStatusColor(status) {
+        // Port of update_display_sweep cardiac status color logic from desktop
         switch (status) {
             case 'Normal':
                 this.csDisplay.style.color = '#27ae60';
@@ -104,53 +127,137 @@ class UIManager {
             case 'LEAD OFF':
                 this.csDisplay.style.color = '#95a5a6';
                 break;
+            case 'Detecting...':
+            case 'Flat/Noise':
+                this.csDisplay.style.color = '#7f8c8d';
+                break;
             default:
                 this.csDisplay.style.color = '#7f8c8d';
         }
-        this.csDisplay.textContent = status;
     }
 
-    // ===== AI PREDICTION =====
-    updateAI(status, probability, bufferingSec) {
-        // Port of update_ai_ui() + update_rate_indicators() AI display logic
-        if (status === 'APNEA') {
-            this.aiStatusDisplay.textContent = 'APNEA';
-            this.aiStatusDisplay.style.color = '#e74c3c';
-            this.aiStatusDisplay.style.fontSize = '11px';
-            this.aiProbDisplay.textContent = `Prob: ${(probability * 100).toFixed(1)}%`;
-        } else if (status === 'NORMAL') {
-            this.aiStatusDisplay.textContent = 'NORMAL';
-            this.aiStatusDisplay.style.color = '#27ae60';
-            this.aiStatusDisplay.style.fontSize = '11px';
-            this.aiProbDisplay.textContent = `Prob: ${(probability * 100).toFixed(1)}%`;
-        } else if (status === 'Error') {
+    // ===== AI DISPLAY =====
+    /**
+     * Called on every 'ai' message from the server. Mirrors the desktop split between
+     * update_ai_ui (called on prediction) and update_rate_indicators (called every 1s).
+     *
+     * @param {string} status - 'APNEA' | 'NORMAL' | 'Error' | "Ns" countdown string
+     * @param {number} probability - 0..1
+     * @param {number} bufferingSec - seconds until next prediction
+     * @param {boolean} [predictionMade] - explicit override from server (optional)
+     */
+    updateAI(status, probability, bufferingSec, predictionMade) {
+        // Server explicitly told us we're reset (e.g. on reconnect)
+        if (predictionMade === false) {
+            this._renderAIBuffering(bufferingSec);
+            return;
+        }
+
+        if (status === 'APNEA' || status === 'NORMAL') {
+            // A prediction was just made
+            const newPrediction = !this.aiPredictionMade
+                || status !== this.aiLastStatus
+                || Math.abs(probability - this.aiLastProbability) > 0.001;
+
+            if (newPrediction) {
+                // Show the prediction
+                this.aiPredictionMade = true;
+                this.aiLastStatus = status;
+                this.aiLastProbability = probability;
+                this.aiStatusDisplay.textContent = status;
+                this.aiStatusDisplay.style.fontSize = '11px';
+                this.aiStatusDisplay.style.color = status === 'APNEA' ? '#e74c3c' : '#27ae60';
+                this.aiProbDisplay.textContent = `Prob: ${(probability * 100).toFixed(1)}%`;
+            } else {
+                // Same prediction still showing - update countdown in prob display
+                this.aiStatusDisplay.textContent = status;
+                this.aiStatusDisplay.style.fontSize = '11px';
+                this.aiStatusDisplay.style.color = status === 'APNEA' ? '#e74c3c' : '#27ae60';
+                this.aiProbDisplay.textContent = `Next update: ${bufferingSec}s`;
+            }
+            return;
+        }
+
+        if (status === 'Error') {
             this.aiStatusDisplay.textContent = 'Error';
             this.aiStatusDisplay.style.color = '#c0392b';
+            this.aiStatusDisplay.style.fontSize = '11px';
+            this.aiProbDisplay.textContent = 'Prob: -';
+            return;
+        }
+
+        // Otherwise: numeric countdown "Ns" = buffering
+        this._renderAIBuffering(bufferingSec);
+    }
+
+    _renderAIBuffering(bufferingSec) {
+        this.aiStatusDisplay.textContent = `${bufferingSec}s`;
+        this.aiStatusDisplay.style.color = '#7f8c8d';
+        this.aiStatusDisplay.style.fontSize = '14px';
+        // If we already had a prediction, show "Next update", otherwise "Buffering..."
+        if (this.aiPredictionMade) {
+            this.aiProbDisplay.textContent = 'Next update...';
         } else {
-            // Buffering countdown (60s, 59s, ...)
-            this.aiStatusDisplay.textContent = bufferingSec + 's';
-            this.aiStatusDisplay.style.color = '#7f8c8d';
-            this.aiStatusDisplay.style.fontSize = '14px';
             this.aiProbDisplay.textContent = 'Buffering...';
         }
+    }
+
+    /** Called when the serial device disconnects. Port of desktop's
+     *  update_rate_indicators "not is_recording" branch. */
+    _renderAIStopped() {
+        this.aiPredictionMade = false;
+        this.aiLastStatus = 'Stopped';
+        this.aiLastProbability = 0;
+        this.aiStatusDisplay.textContent = 'Stopped';
+        this.aiStatusDisplay.style.color = '#7f8c8d';
+        this.aiStatusDisplay.style.fontSize = '14px';
+        this.aiProbDisplay.textContent = '-';
+    }
+
+    /** Public API for disconnect handler. */
+    resetAIStopped() {
+        this._renderAIStopped();
+    }
+
+    /** Public API for connect handler. Resets to "60s" + "Buffering..." */
+    resetAIBuffering() {
+        this.aiPredictionMade = false;
+        this.aiLastStatus = '60s';
+        this.aiLastProbability = 0;
+        this.aiStatusDisplay.textContent = '60s';
+        this.aiStatusDisplay.style.color = '#7f8c8d';
+        this.aiStatusDisplay.style.fontSize = '14px';
+        this.aiProbDisplay.textContent = 'Buffering...';
     }
 
     // ===== CONNECTION STATUS =====
     updateConnectionStatus(message) {
         this.connectionStatus.textContent = 'Status: ' + message;
 
-        if (message.includes('Connected:')) {
+        const wasConnected = this.isConnected;
+        const nowConnected = message.includes('Connected:');
+        this.isConnected = nowConnected;
+
+        if (nowConnected) {
             this.connectBtn.disabled = true;
             this.disconnectBtn.disabled = false;
             this.deviceCombo.disabled = true;
             this.refreshBtn.disabled = true;
             this.setBluetoothConnected(true);
+            if (!wasConnected) {
+                // Fresh connection - reset AI to "60s" + "Buffering..."
+                this.resetAIBuffering();
+            }
         } else {
             this.connectBtn.disabled = false;
             this.disconnectBtn.disabled = true;
             this.deviceCombo.disabled = false;
             this.refreshBtn.disabled = false;
             this.setBluetoothConnected(false);
+            if (wasConnected) {
+                // Disconnection - reset AI to "Stopped"
+                this._renderAIStopped();
+            }
         }
     }
 
@@ -178,7 +285,12 @@ class UIManager {
     showPatientModal() {
         this.patientModal.style.display = 'flex';
         this.patientNameInput.value = '';
-        this.patientDobInput.value = new Date().toISOString().split('T')[0];
+        // Default DOB to today (use YYYY-MM-DD for input[type=date])
+        const now = new Date();
+        const yyyy = now.getFullYear();
+        const mm = String(now.getMonth() + 1).padStart(2, '0');
+        const dd = String(now.getDate()).padStart(2, '0');
+        this.patientDobInput.value = `${yyyy}-${mm}-${dd}`;
         this.patientNameInput.focus();
     }
 
@@ -213,13 +325,25 @@ class UIManager {
         this.recordingBtn.classList.remove('btn-red');
         this.recordingBtn.classList.add('btn-orange');
         this.recordingTime.textContent = 'Recording Time: 00:00:00';
-        this.patientInfo.textContent = 'No Patient Data';
+        this.patientInfo.innerHTML = 'No Patient Data';
     }
 
     setPatientInfo(name, dob) {
         this.patientInfo.innerHTML =
             `<span style="color: #2ecc71; font-weight: bold; font-size: 12pt;">` +
             `Pasien: ${name}  |  Tanggal Lahir: ${dob}</span>`;
+    }
+
+    // ===== PAUSE / RESUME =====
+    setPauseResumeState(paused) {
+        this.isPaused = paused;
+        if (paused) {
+            this.pauseBtn.classList.add('is-active');
+            this.resumeBtn.classList.remove('is-active');
+        } else {
+            this.pauseBtn.classList.remove('is-active');
+            this.resumeBtn.classList.add('is-active');
+        }
     }
 
     // ===== PERFORMANCE =====

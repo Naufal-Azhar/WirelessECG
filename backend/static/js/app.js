@@ -9,8 +9,10 @@ const ws = new WSClient();
 const ecgDisplay = new ECGDisplay();
 const ui = new UIManager();
 
+// Expose for debugging / testing
+window.__ecg = { ws, ecgDisplay, ui };
+
 // ===== WEBSOCKET EVENT HANDLERS =====
-// Port of ECGWindow.on_ecg_data() display update logic
 
 ws.on('ecg', (msg) => {
     ecgDisplay.pushBatch(msg.data);
@@ -21,7 +23,7 @@ ws.on('hr', (msg) => {
 });
 
 ws.on('ai', (msg) => {
-    ui.updateAI(msg.status, msg.probability, msg.buffering_sec);
+    ui.updateAI(msg.status, msg.probability, msg.buffering_sec, msg.prediction_made);
 });
 
 ws.on('battery', (msg) => {
@@ -36,7 +38,13 @@ ws.on('status', (msg) => {
 });
 
 ws.on('recording', (msg) => {
-    // Recording status updates from server
+    // Server-authoritative recording state sync.
+    // The UI already has a local timer; this is for catching up if the
+    // server-side state diverges (e.g. someone hits the REST stop endpoint).
+    if (!msg.active && ui.isRecording) {
+        // Server says we stopped but UI thinks we're still recording
+        ui.stopRecordingUI();
+    }
 });
 
 ws.on('perf', (msg) => {
@@ -45,9 +53,12 @@ ws.on('perf', (msg) => {
 
 ws.on('report_saved', (msg) => {
     if (msg.result && msg.result.error) {
-        ui.showAlert('Error', msg.result.error);
+        ui.showAlert('No Data', msg.result.error);
     } else if (msg.result) {
-        ui.showAlert('Success', `Reports saved successfully.\nDocx: ${msg.result.files?.report_docx || 'generated'}`);
+        const fname = msg.result.files?.report_docx || 'generated';
+        const folder = msg.result.folder || '';
+        ui.showAlert('Success',
+            `Reports saved successfully.\nDocx: ${fname}\nFolder: ${folder}`);
     }
     ui.stopRecordingUI();
 });
@@ -59,10 +70,14 @@ ws.on('connected', () => {
 
 ws.on('disconnected', () => {
     ui.updateConnectionStatus('Server Disconnected');
+    ui.setPauseResumeState(false);
+    ecgDisplay.resume();
+    // Reset all live readouts - we no longer have a data source
+    ui.updateHeartRate(0, '---');
+    ui.resetAIStopped();
 });
 
 // ===== BUTTON EVENT HANDLERS =====
-// Port of ECGWindow button connections
 
 // Refresh ports
 ui.refreshBtn.addEventListener('click', () => refreshPorts());
@@ -88,33 +103,37 @@ ui.disconnectBtn.addEventListener('click', () => {
 
 // Pause
 ui.pauseBtn.addEventListener('click', () => {
+    if (ui.isPaused) return;
     ecgDisplay.pause();
     ws.pauseDisplay();
+    ui.setPauseResumeState(true);
 });
 
 // Resume
 ui.resumeBtn.addEventListener('click', () => {
+    if (!ui.isPaused) return;
     ecgDisplay.resume();
     ws.resumeDisplay();
+    ui.setPauseResumeState(false);
 });
 
 // Recording Time / Stop Recording
 ui.recordingBtn.addEventListener('click', () => {
     if (!ui.isRecording) {
-        // Show patient data dialog (port of start_recording_time first branch)
         ui.showPatientModal();
     } else {
-        // Stop recording (port of start_recording_time second branch)
         ws.stopRecording();
-        // UI will be updated when report_saved message arrives
     }
 });
 
 // Patient Modal - Start Recording
 ui.modalStartBtn.addEventListener('click', () => {
     const name = ui.patientNameInput.value.trim() || 'Tanpa Nama';
-    const dob = ui.patientDobInput.value || '-';
-    const dobFormatted = dob; // Already in YYYY-MM-DD from date input
+    const dobRaw = ui.patientDobInput.value;
+    // Convert YYYY-MM-DD to DD/MM/YYYY for display (matches desktop)
+    const dobFormatted = dobRaw
+        ? dobRaw.split('-').reverse().join('/')
+        : '-';
 
     ui.hidePatientModal();
     ui.setPatientInfo(name, dobFormatted);
@@ -132,9 +151,12 @@ ui.alertOkBtn.addEventListener('click', () => {
     ui.hideAlert();
 });
 
-// Close button (disconnect)
+// Close button
 ui.closeBtn.addEventListener('click', () => {
     ws.disconnectDevice();
+    setTimeout(() => {
+        try { window.close(); } catch (e) { /* ignore */ }
+    }, 200);
 });
 
 // Close modals on overlay click
@@ -145,25 +167,30 @@ ui.alertModal.addEventListener('click', (e) => {
     if (e.target === ui.alertModal) ui.hideAlert();
 });
 
+// Close modals with Escape
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+        if (ui.alertModal.style.display === 'flex') ui.hideAlert();
+        else if (ui.patientModal.style.display === 'flex') ui.hidePatientModal();
+    }
+});
+
 // ===== ANIMATION LOOP =====
-// Port of QTimer(50ms) update_display_sweep()
 function renderLoop() {
     ecgDisplay.render();
     requestAnimationFrame(renderLoop);
 }
 
 // ===== PERFORMANCE COUNTERS =====
-// Port of sps_calc_timer (1 second interval)
 setInterval(() => {
     const fps = ecgDisplay.fps;
     ui.updateFPS(fps);
 }, 1000);
 
-// Update date
-setInterval(() => ui.updateDate(), 60000);
+// Date update - match desktop: every 1 second (the QTimer(1000ms) on update_rate_indicators)
+setInterval(() => ui.updateDate(), 1000);
 
 // ===== STARTUP =====
-// Port of ECGWindow.showMaximized() + init
 document.addEventListener('DOMContentLoaded', () => {
     ui.updateDate();
     ui.updateBattery(0);

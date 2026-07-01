@@ -46,13 +46,16 @@ class WebSocketManager:
     async def broadcast_hr(self, bpm: int, status: str):
         await self.broadcast({"type": "hr", "bpm": bpm, "status": status})
 
-    async def broadcast_ai(self, status: str, probability: float, buffering_sec: int):
-        await self.broadcast({
+    async def broadcast_ai(self, status: str, probability: float, buffering_sec: int, prediction_made: bool = None):
+        msg = {
             "type": "ai",
             "status": status,
             "probability": probability,
             "buffering_sec": buffering_sec,
-        })
+        }
+        if prediction_made is not None:
+            msg["prediction_made"] = prediction_made
+        await self.broadcast(msg)
 
     async def broadcast_battery(self, level: int):
         await self.broadcast({"type": "battery", "level": level})

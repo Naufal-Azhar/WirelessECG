@@ -143,6 +143,17 @@ class AIInference:
     def set_event_loop(self, loop):
         self._loop = loop
 
+    def reset(self):
+        """Reset AI state to initial values.
+        Called on new serial connection to clear stale predictions from previous session.
+        Port of ai_prediction_made = False in desktop ECGWindow.start_connection()."""
+        self.ai_buffer.clear()
+        self.ai_prediction_made = False
+        self.latest_status = f"{AI_WINDOW_SECONDS}s"
+        self.latest_probability = 0.0
+        self.latest_buffering_sec = AI_WINDOW_SECONDS
+        self._inference_running = False
+
     def get_state(self):
         """Return current AI state for WebSocket broadcasting."""
         return {

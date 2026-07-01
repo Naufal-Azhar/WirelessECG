@@ -152,10 +152,13 @@ async def status_broadcast_loop():
 
         # AI
         ai_state = ai_engine.get_state()
-        ai_key = (ai_state["status"], round(ai_state["probability"], 2), ai_state["buffering_sec"])
+        ai_key = (ai_state["status"], round(ai_state["probability"], 2), ai_state["buffering_sec"], ai_state["prediction_made"])
         if ai_key != last_ai:
             await ws_manager.broadcast_ai(
-                ai_state["status"], ai_state["probability"], ai_state["buffering_sec"]
+                ai_state["status"],
+                ai_state["probability"],
+                ai_state["buffering_sec"],
+                ai_state["prediction_made"],
             )
             last_ai = ai_key
 
@@ -219,7 +222,25 @@ async def websocket_endpoint(websocket: WebSocket):
                 port = data.get("port")
                 baudrate = data.get("baudrate", 115200)
                 if port:
+                    # Reset AI + recording state for the new session
+                    # (mirrors desktop ECGWindow.start_connection: ai_prediction_made = False,
+                    #  recorded_data.clear(), ai_results_buffer.clear())
+                    ai_engine.reset()
+                    rec_manager.reset_session()
+                    # Reset ECG filter state (desktop: self._create_filter())
+                    ecg_proc._create_filter()
+                    # Reset HR readout
+                    ecg_proc.heart_rate = 0
+                    ecg_proc.cardiac_status = "---"
+                    ecg_proc.ecg_buffer.clear()
                     await bluetooth.connect(port, baudrate)
+                    # Force an immediate status broadcast so the UI sees the reset state
+                    await ws_manager.broadcast_ai(
+                        ai_engine.latest_status,
+                        ai_engine.latest_probability,
+                        ai_engine.latest_buffering_sec,
+                        ai_engine.ai_prediction_made,
+                    )
 
             elif msg_type == "disconnect":
                 await bluetooth.disconnect()

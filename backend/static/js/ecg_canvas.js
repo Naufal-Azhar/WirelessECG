@@ -24,16 +24,24 @@ class ECGCanvas {
         this.maxY = 100;
         this.didWrap = false;
 
-        // Resize handling
+        // Resize handling - defer first resize to next frame so layout has settled
         this._resize();
+        requestAnimationFrame(() => this._resize());
         window.addEventListener('resize', () => this._resize());
+        // ResizeObserver catches flex-driven size changes (e.g. window resize, panel toggle)
+        if (typeof ResizeObserver !== 'undefined') {
+            this._ro = new ResizeObserver(() => this._resize());
+            this._ro.observe(this.canvas.parentElement);
+        }
     }
 
     _resize() {
-        const rect = this.canvas.parentElement.getBoundingClientRect();
+        const parent = this.canvas.parentElement;
+        const rect = parent.getBoundingClientRect();
+        if (rect.width === 0 || rect.height === 0) return;
         const dpr = window.devicePixelRatio || 1;
-        this.canvas.width = rect.width * dpr;
-        this.canvas.height = rect.height * dpr;
+        this.canvas.width = Math.round(rect.width * dpr);
+        this.canvas.height = Math.round(rect.height * dpr);
         this.canvas.style.width = rect.width + 'px';
         this.canvas.style.height = rect.height + 'px';
         this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
