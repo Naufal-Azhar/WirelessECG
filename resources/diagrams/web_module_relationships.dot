@@ -1,0 +1,63 @@
+digraph WebModuleRelationships {
+  graph [rankdir=LR, bgcolor="white", fontname="Arial", labelloc="t", label="Web Application - Module Relationships", fontsize=20, pad=0.25, nodesep=0.35, ranksep=0.7, splines=polyline]
+  node [shape=box, style="rounded,filled", fillcolor="#eef2ff", color="#5264a3", fontname="Arial", fontsize=10, margin="0.12,0.08"]
+  edge [color="#596275", fontname="Arial", fontsize=9, arrowsize=0.7]
+
+  subgraph cluster_hardware {
+    label="Hardware"; color="#c8d6e5"; style="rounded,dashed"; fontname="Arial";
+    esp [label="ECG_Arduino_IDE/\nECG_Arduino_IDE.ino\nESP32 + ADS1293", fillcolor="#fff3cd"]
+  }
+  subgraph cluster_backend {
+    label="FastAPI Backend"; color="#9ad5c0"; style="rounded"; fontname="Arial";
+    main [label="backend/main.py", fillcolor="#d5f5e3"]
+    config [label="backend/config.py"]
+    bt [label="bluetooth_manager.py"]
+    proc [label="ecg_processor.py"]
+    ai [label="ai_inference.py"]
+    ws [label="websocket_manager.py"]
+    rec [label="recording_manager.py"]
+    report [label="report_generator.py"]
+    subgraph cluster_api {
+      label="REST API"; color="#b8c7e6"; style="rounded,dashed"; fontname="Arial";
+      devices [label="api/devices.py"]
+      recording [label="api/recording.py"]
+      reports [label="api/reports.py"]
+    }
+  }
+  subgraph cluster_frontend {
+    label="Browser Frontend / PWA"; color="#f3c4a3"; style="rounded"; fontname="Arial";
+    index [label="static/index.html", fillcolor="#fdebd0"]
+    app [label="static/js/app.js", fillcolor="#fdebd0"]
+    websocket [label="static/js/websocket.js", fillcolor="#fdebd0"]
+    ui [label="static/js/ui_manager.js", fillcolor="#fdebd0"]
+    canvas [label="static/js/ecg_canvas.js", fillcolor="#fdebd0"]
+    css [label="static/css/styles.css", fillcolor="#fdebd0"]
+    pwa [label="manifest.json + sw.js", fillcolor="#fdebd0"]
+  }
+
+  esp -> bt [label="Bluetooth SPP / serial"]
+  main -> config
+  main -> bt
+  main -> proc
+  main -> ai
+  main -> ws
+  main -> rec
+  main -> devices
+  main -> recording
+  main -> reports
+  main -> index [label="serves static app"]
+  devices -> bt
+  recording -> rec
+  reports -> config
+  rec -> report
+  bt -> main [label="asyncio.Queue"]
+  ai -> rec [style=dashed, label="intended annotation callback"]
+  index -> app
+  app -> websocket
+  app -> ui
+  app -> canvas
+  websocket -> main [label="WS /ws", dir=both]
+  ws -> websocket [label="JSON broadcasts"]
+  index -> css
+  index -> pwa
+}

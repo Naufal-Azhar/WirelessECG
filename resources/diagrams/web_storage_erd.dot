@@ -1,0 +1,53 @@
+digraph WebStorageERD {
+  graph [rankdir=LR, bgcolor="white", fontname="Arial", labelloc="t", label="Web Application - File Storage ERD", fontsize=20, pad=0.25, nodesep=0.6, ranksep=1.0]
+  node [shape=plain, fontname="Arial", fontsize=10]
+  edge [color="#596275", fontname="Arial", fontsize=9, arrowsize=0.7]
+
+  session [label=<
+    <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="6" BGCOLOR="#d5f5e3">
+      <TR><TD BORDER="1"><B>WEB_SESSION</B></TD></TR>
+      <TR><TD ALIGN="LEFT">session_id / folder_name</TD></TR>
+      <TR><TD ALIGN="LEFT">patient_name</TD></TR>
+      <TR><TD ALIGN="LEFT">patient_dob</TD></TR>
+      <TR><TD ALIGN="LEFT">start_time, duration</TD></TR>
+      <TR><TD ALIGN="LEFT">last heart_rate</TD></TR>
+      <TR><TD ALIGN="LEFT">last cardiac_status</TD></TR>
+    </TABLE>>]
+  raw [label=<
+    <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="6" BGCOLOR="#fff3cd">
+      <TR><TD BORDER="1"><B>ECG_RAW_*.CSV</B></TD></TR>
+      <TR><TD ALIGN="LEFT">Timestamp</TD></TR>
+      <TR><TD ALIGN="LEFT">Lead_I_RAW</TD></TR>
+      <TR><TD ALIGN="LEFT">Lead_II_RAW</TD></TR>
+      <TR><TD ALIGN="LEFT">Lead_III_RAW</TD></TR>
+    </TABLE>>]
+  processed [label=<
+    <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="6" BGCOLOR="#d6eaf8">
+      <TR><TD BORDER="1"><B>ECG_PROCESSED_*.CSV</B></TD></TR>
+      <TR><TD ALIGN="LEFT">Timestamp</TD></TR>
+      <TR><TD ALIGN="LEFT">Lead_I_Norm</TD></TR>
+      <TR><TD ALIGN="LEFT">Lead_II_Norm</TD></TR>
+      <TR><TD ALIGN="LEFT">Lead_III_Norm</TD></TR>
+    </TABLE>>]
+  annotation [label=<
+    <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="6" BGCOLOR="#f5eef8">
+      <TR><TD BORDER="1"><B>ECG_AI_ANNOTATION_*.CSV</B></TD></TR>
+      <TR><TD ALIGN="LEFT">Timestamp</TD></TR>
+      <TR><TD ALIGN="LEFT">Elapsed_Seconds</TD></TR>
+      <TR><TD ALIGN="LEFT">Prediction_Status</TD></TR>
+      <TR><TD ALIGN="LEFT">Probability</TD></TR>
+      <TR><TD ALIGN="LEFT"><I>May be header-only currently</I></TD></TR>
+    </TABLE>>]
+  report [label=<
+    <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="6" BGCOLOR="#fadbd8">
+      <TR><TD BORDER="1"><B>ECG_REPORT_*.DOCX</B></TD></TR>
+      <TR><TD ALIGN="LEFT">patient + vitals summary</TD></TR>
+      <TR><TD ALIGN="LEFT">AI summary</TD></TR>
+      <TR><TD ALIGN="LEFT">10-second ECG plot</TD></TR>
+    </TABLE>>]
+
+  session -> raw [label="1 session contains many rows"]
+  session -> processed [label="1 session contains many rows"]
+  session -> annotation [label="0..many predictions"]
+  session -> report [label="1 generated report"]
+}
